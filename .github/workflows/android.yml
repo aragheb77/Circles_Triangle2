@@ -1,9 +1,6 @@
 name: Android CI
 on: [push, pull_request, workflow_dispatch]
 
-env:
-  GRADLE_BIN: /opt/gradle-8.10.2/bin/gradle
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -23,36 +20,53 @@ jobs:
       # AGP 8.7.x needs Gradle 8.x; the runner's preinstalled Gradle is 9.x
       - name: Install Gradle 8.10.2
         run: |
-          curl -fsSL https://services.gradle.org/distributions/gradle-8.10.2-bin.zip -o /tmp/gradle.zip
-          sudo unzip -q /tmp/gradle.zip -d /opt
-          "$GRADLE_BIN" --version
+          mkdir -p "$HOME/gradle"
+          curl -fsSL -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.10.2-bin.zip
+          python3 -m zipfile -e /tmp/gradle.zip "$HOME/gradle"
+          chmod +x "$HOME/gradle/gradle-8.10.2/bin/gradle"
+          echo "GRADLE_BIN=$HOME/gradle/gradle-8.10.2/bin/gradle" >> "$GITHUB_ENV"
+          "$HOME/gradle/gradle-8.10.2/bin/gradle" --version
 
-      - name: Build debug APK
+      - name: Build APK and run engine tests
         run: |
-          set -o pipefail
-          "$GRADLE_BIN" :app:assembleDebug --stacktrace --console=plain 2>&1 | tee build.log
-
-      - name: Engine unit tests
-        if: always()
-        run: |
-          "$GRADLE_BIN" :engine:test --stacktrace --console=plain
-
-      - name: Show build errors in run summary
-        if: always()
-        run: |
+          set +e
           {
-            echo '### Build errors (if any)'
+            echo "### Environment"
             echo '```'
-            grep -E -A6 "^e: |What went wrong|FAILURE|error:" build.log | head -80 || true
+            echo "GRADLE_BIN=$GRADLE_BIN"
+            ls -la "$GRADLE_BIN" 2>&1
+            "$GRADLE_BIN" --version 2>&1 | head -20
+            java -version 2>&1
+            echo "ANDROID_HOME=$ANDROID_HOME"
+            echo "workspace:"; ls -la
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+          "$GRADLE_BIN" :engine:test :app:assembleDebug --continue --stacktrace --console=plain > build.log 2>&1
+          code=$?
+          echo "Gradle exit code: $code"
+          tail -n 80 build.log
+
+          {
+            echo "### Gradle exit code: $code"
+            echo '```'
+            grep -E -A6 "^e: |What went wrong|FAILURE|error:" build.log | head -80
+            echo '--- last 60 lines ---'
+            tail -n 60 build.log
+            echo '```'
+            echo "### APK files found"
+            echo '```'
+            find . -name "*.apk" 2>/dev/null
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $code
 
       - name: Upload APK
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: circles-triangle-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: "**/build/outputs/apk/debug/*.apk"
           if-no-files-found: warn
 
       - name: Upload build log
