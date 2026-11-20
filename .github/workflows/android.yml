@@ -15,7 +15,12 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - uses: android-actions/setup-android@v3
+      - name: Set up Android SDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses
+          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       # AGP 8.7.x needs Gradle 8.x; the runner's preinstalled Gradle is 9.x
       - name: Install Gradle 8.10.2
@@ -24,8 +29,8 @@ jobs:
           curl -fsSL -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.10.2-bin.zip
           python3 -m zipfile -e /tmp/gradle.zip "$HOME/gradle"
           chmod +x "$HOME/gradle/gradle-8.10.2/bin/gradle"
-          echo "GRADLE_BIN=$HOME/gradle/gradle-8.10.2/bin/gradle" >> "$GITHUB_ENV"
           "$HOME/gradle/gradle-8.10.2/bin/gradle" --version
+          echo "GRADLE_BIN=$HOME/gradle/gradle-8.10.2/bin/gradle" >> "$GITHUB_ENV"
 
       - name: Build APK and run engine tests
         run: |
