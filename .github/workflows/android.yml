@@ -1,6 +1,9 @@
 name: Android CI
 on: [push, pull_request, workflow_dispatch]
 
+env:
+  GRADLE_BIN: /opt/gradle-8.10.2/bin/gradle
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -17,25 +20,22 @@ jobs:
 
       - uses: android-actions/setup-android@v3
 
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.10.2"
-
-      # Pin Gradle 8.10.2 (the Android Gradle Plugin 8.7.x does not work with Gradle 9)
-      - name: Create Gradle 8.10.2 wrapper
+      # AGP 8.7.x needs Gradle 8.x; the runner's preinstalled Gradle is 9.x
+      - name: Install Gradle 8.10.2
         run: |
-          mkdir -p /tmp/wrapper-gen && cd /tmp/wrapper-gen
-          gradle wrapper --gradle-version 8.10.2 --no-daemon
-          cp -r gradle "$GITHUB_WORKSPACE/"
-          cp gradlew gradlew.bat "$GITHUB_WORKSPACE/"
-          chmod +x "$GITHUB_WORKSPACE/gradlew"
+          curl -fsSL https://services.gradle.org/distributions/gradle-8.10.2-bin.zip -o /tmp/gradle.zip
+          sudo unzip -q /tmp/gradle.zip -d /opt
+          "$GRADLE_BIN" --version
 
       - name: Build debug APK
-        run: ./gradlew :app:assembleDebug --stacktrace 2>&1 | tee build.log
+        run: |
+          set -o pipefail
+          "$GRADLE_BIN" :app:assembleDebug --stacktrace --console=plain 2>&1 | tee build.log
 
       - name: Engine unit tests
         if: always()
-        run: ./gradlew :engine:test --stacktrace
+        run: |
+          "$GRADLE_BIN" :engine:test --stacktrace --console=plain
 
       - name: Show build errors in run summary
         if: always()
@@ -43,7 +43,7 @@ jobs:
           {
             echo '### Build errors (if any)'
             echo '```'
-            grep -E -A6 "^e: |What went wrong|FAILURE" build.log | head -80 || true
+            grep -E -A6 "^e: |What went wrong|FAILURE|error:" build.log | head -80 || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
