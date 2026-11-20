@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -32,38 +33,45 @@ fun CirclesTheme(content: @Composable () -> Unit) {
 }
 
 @Composable
-fun CtaButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, textSize: Int = 17) {
+fun CtaButton(
+    text: String, onClick: () -> Unit, modifier: Modifier = Modifier,
+    textSize: Int = 17, vPad: Int = 17, radius: Int = 16, brush: Brush = Tk.CtaBrush, letterSpacing: Float = 0.5f,
+) {
+    val shape = RoundedCornerShape(radius.dp)
     Box(
         modifier
             .fillMaxWidth()
-            .shadow(8.dp, RoundedCornerShape(16.dp), ambientColor = Color(0x44ED9D66), spotColor = Color(0x44ED9D66))
-            .clip(RoundedCornerShape(16.dp))
-            .background(Tk.CtaBrush)
+            .shadow(8.dp, shape, ambientColor = Color(0x44ED9D66), spotColor = Color(0x44ED9D66))
+            .clip(shape)
+            .background(brush)
             .clickable(role = Role.Button, onClick = onClick)
-            .padding(vertical = 17.dp),
+            .padding(vertical = vPad.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, color = Tk.ButtonText, fontSize = textSize.sp, fontWeight = FontWeight.Black, letterSpacing = 0.5.sp)
+        Text(text, color = Tk.ButtonText, fontSize = textSize.sp, fontWeight = FontWeight.Black, letterSpacing = letterSpacing.sp)
     }
 }
 
+/** Light button (Pause modal): white, 1 dp border, 14 dp padding, radius 14. */
 @Composable
-fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, dark: Boolean = false) {
+fun OutlineButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, textColor: Color = Tk.Ink) {
     val shape = RoundedCornerShape(14.dp)
-    val bg = if (dark) Color(0x20FFFFFF) else Color.White
-    val line = if (dark) Color(0x44FFFFFF) else Tk.Border
     Box(
-        modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(bg)
-            .border(1.dp, line, shape)
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(vertical = 14.dp),
+        modifier.fillMaxWidth().clip(shape).background(Color.White).border(1.dp, Tk.Border, shape)
+            .clickable(role = Role.Button, onClick = onClick).padding(vertical = 14.dp),
         contentAlignment = Alignment.Center,
-    ) {
-        Text(text, color = if (dark) Color.White else Tk.Indigo, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
-    }
+    ) { Text(text, color = textColor, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp) }
+}
+
+/** Translucent button used on result screens (New Setup / Main Menu). */
+@Composable
+fun GlassButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, fill: Color = Color.Transparent) {
+    val shape = RoundedCornerShape(14.dp)
+    Box(
+        modifier.clip(shape).background(fill).border(1.dp, Color(0x44FFFFFF), shape)
+            .clickable(role = Role.Button, onClick = onClick).padding(vertical = 15.dp),
+        contentAlignment = Alignment.Center,
+    ) { Text(text, color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp) }
 }
 
 @Composable
@@ -76,26 +84,33 @@ fun WhiteCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
             .clip(shape)
             .background(Color.White)
             .padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) { content() }
 }
 
 @Composable
 fun SectionLabel(text: String, color: Color = Tk.Muted) {
-    Text(text, color = color, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.5.sp)
+    Text(text, color = color, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
 }
 
 @Composable
-fun Chip(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(12.dp)
+fun Chip(
+    label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier,
+    radius: Int = 12, vPad: Int = 12, fontSize: Int = 14,
+) {
+    val shape = RoundedCornerShape(radius.dp)
     Box(
         modifier
+            .then(if (selected) Modifier.shadow(5.dp, shape, ambientColor = Color(0x554654A5), spotColor = Color(0x554654A5)) else Modifier)
             .clip(shape)
             .background(if (selected) Tk.Indigo else Color(0xFFEDF0FF))
             .clickable(role = Role.RadioButton, onClick = onClick)
-            .padding(vertical = 12.dp),
+            .padding(vertical = vPad.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, color = if (selected) Color.White else Tk.Indigo, fontSize = 14.sp, fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Bold)
+        Text(
+            label, color = if (selected) Color.White else Tk.Ink, fontSize = fontSize.sp,
+            fontWeight = if (selected) FontWeight.Black else FontWeight.Bold,
+        )
     }
 }

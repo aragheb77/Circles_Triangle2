@@ -40,7 +40,15 @@ class BoardTest {
     }
 
     @Test fun unsupportedSizeRejected() {
-        assertFailsWith<IllegalArgumentException> { Board.of(15) }
-        assertFailsWith<IllegalArgumentException> { Board.of(6) }
+        assertFailsWith<IllegalArgumentException> { Board.of(14) }
+        assertFailsWith<IllegalArgumentException> { Board.of(4) }
+    }
+
+    @Test fun designBoardSizes5to9() {
+        val circles = mapOf(5 to 15, 6 to 21, 7 to 28, 8 to 36, 9 to 45)
+        for ((rows, n) in circles) {
+            assertEquals(n, Board.of(rows).cellCount)
+            assertEquals(3 * (rows - 1), Board.of(rows).lines.size) // 3 families x lines of length >= 2
+        }
     }
 }

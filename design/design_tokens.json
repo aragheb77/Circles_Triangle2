@@ -1,5 +1,5 @@
 {
-  "source": "Kite file 3s6pvavsrg3ieakg, system 'Circles Triangle \u2014 Approved UI', page 'Game UI' (read live)",
+  "source": "Kite file 3s6pvavsrg3ieakg, page 'Game UI' (re-read live, design review 2026-11-20)",
   "colors": {
     "ink": "#20264C",
     "indigo": "#4654A5",
@@ -19,13 +19,22 @@
   "frameLevelColors_notInKiteSystem": {
     "player1": "#FFAE55",
     "player2": "#737EE0",
-    "lattice": "#9CA8DC",
+    "lattice": "#E7EAF7 (1.5px, changed from #9CA8DC/3.5px)",
     "markerOutline": "#7785C8",
     "scrim": "#1C2353@62%",
     "ctaGradient": [
       "#FFCA6B",
       "#FF9B75"
-    ]
+    ],
+    "playerPanelTint": "player colour @15% (0x26), border @53% (0x88)",
+    "scoreCardActive": {
+      "p1": "bg #FFAE5526 border #FFAE55CC",
+      "p2": "bg #737EE026 border #737EE0CC"
+    },
+    "scoreCardInactive": {
+      "p1": "bg #FFAE5512 border #FFAE5555",
+      "p2": "bg #737EE01F border #737EE080"
+    }
   },
   "spacingDp": {
     "screen": 24,
@@ -62,5 +71,18 @@
       900
     ],
     "note": "font files not exposed by Kite; bundle Inter (OFL) into res/font"
+  },
+  "boardSizes": [
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "motionMs": {
+    "thinking": "450-650",
+    "lineReveal": 300,
+    "scoreCountUp": "450 (+550 stage)",
+    "tintCrossFade": 200
   }
 }

@@ -42,7 +42,8 @@ class Board private constructor(val rows: Int, val minLineLength: Int) {
 
     companion object {
         const val DEFAULT_MIN_LINE_LENGTH = 2
-        val SUPPORTED_ROWS: List<Int> = listOf(5, 7, 9, 11, 13)
+        /** Validation range only: geometry, lines and scoring are unchanged. UI exposes 5-9 (approved design). */
+        val SUPPORTED_ROWS: List<Int> = (5..13).toList()
         private val cache = ConcurrentHashMap<Int, Board>()
 
         fun idOf(row: Int, col: Int): Int = row * (row + 1) / 2 + col
