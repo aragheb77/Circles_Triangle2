@@ -15,17 +15,20 @@ jobs:
           distribution: temurin
           java-version: 17
 
+      # android-actions/setup-android@v3 fails on the obsolete 'tools' package, so the SDK is configured explicitly.
       - name: Set up Android SDK
         run: |
-          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
-          # sdkmanager exits after accepting licenses; "yes" then receives SIGPIPE.
-          # Disable pipefail for this pipeline so that SIGPIPE from "yes" is not
-          # mistaken for an SDK license failure; sdkmanager's exit code is retained.
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          SDKM="$(command -v sdkmanager || true)"
+          [ -x "$SDKM" ] || SDKM="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          echo "sdkmanager: $SDKM"
+          # 'yes' receives SIGPIPE once sdkmanager exits; that is expected, so pipefail is off for this line only.
           set +o pipefail
-          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses
+          yes | "$SDKM" --licenses > /dev/null
           set -o pipefail
-          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          "$SDKM" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       # AGP 8.7.x needs Gradle 8.x; the runner's preinstalled Gradle is 9.x
       - name: Install Gradle 8.10.2
@@ -34,8 +37,8 @@ jobs:
           curl -fsSL -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.10.2-bin.zip
           python3 -m zipfile -e /tmp/gradle.zip "$HOME/gradle"
           chmod +x "$HOME/gradle/gradle-8.10.2/bin/gradle"
-          "$HOME/gradle/gradle-8.10.2/bin/gradle" --version
           echo "GRADLE_BIN=$HOME/gradle/gradle-8.10.2/bin/gradle" >> "$GITHUB_ENV"
+          "$HOME/gradle/gradle-8.10.2/bin/gradle" --version
 
       - name: Build APK and run engine tests
         run: |
@@ -44,11 +47,9 @@ jobs:
             echo "### Environment"
             echo '```'
             echo "GRADLE_BIN=$GRADLE_BIN"
-            ls -la "$GRADLE_BIN" 2>&1
             "$GRADLE_BIN" --version 2>&1 | head -20
             java -version 2>&1
             echo "ANDROID_HOME=$ANDROID_HOME"
-            echo "workspace:"; ls -la
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
