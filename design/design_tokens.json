@@ -1,0 +1,66 @@
+{
+  "source": "Kite file 3s6pvavsrg3ieakg, system 'Circles Triangle \u2014 Approved UI', page 'Game UI' (read live)",
+  "colors": {
+    "ink": "#20264C",
+    "indigo": "#4654A5",
+    "indigoMid": "#414E9D",
+    "indigoLight": "#737EE0",
+    "canvas": "#EEF2FF",
+    "canvasMid": "#DFE5FF",
+    "canvasEnd": "#F8F9FF",
+    "gold": "#FFCF70",
+    "goldLight": "#FFE5A9",
+    "coral": "#FF9B75",
+    "white": "#FFFFFF",
+    "muted": "#6974AA",
+    "mutedText": "#7881AD",
+    "border": "#DCE1FA"
+  },
+  "frameLevelColors_notInKiteSystem": {
+    "player1": "#FFAE55",
+    "player2": "#737EE0",
+    "lattice": "#9CA8DC",
+    "markerOutline": "#7785C8",
+    "scrim": "#1C2353@62%",
+    "ctaGradient": [
+      "#FFCA6B",
+      "#FF9B75"
+    ]
+  },
+  "spacingDp": {
+    "screen": 24,
+    "section": 18
+  },
+  "radiusDp": {
+    "card": 20,
+    "control": 14
+  },
+  "board5Rows": {
+    "frame": [
+      330,
+      430
+    ],
+    "hPitch": 76.5,
+    "vPitch": 66.25,
+    "circle": 22,
+    "outline": 3,
+    "latticeStroke": 3.5,
+    "completedLine": 5,
+    "lastMoveRing": 30,
+    "lastMoveStroke": 2.5
+  },
+  "boardScaling": {
+    "hPitch": "306/(rows-1)",
+    "vPitch": "hPitch*0.866",
+    "circle": "min(22, 0.6*hPitch)"
+  },
+  "typography": {
+    "family": "Inter",
+    "weights": [
+      700,
+      800,
+      900
+    ],
+    "note": "font files not exposed by Kite; bundle Inter (OFL) into res/font"
+  }
+}
