@@ -2,9 +2,37 @@ package com.thecirclestriangle.ui
 
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.PathMeasure
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.style.TextOverflow
+import com.thecirclestriangle.audio.Sound
+import com.thecirclestriangle.engine.Player
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.math.PI
+import kotlin.math.sin
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -27,10 +55,13 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -62,11 +93,21 @@ fun Root(vm: GameViewModel) {
     BackHandler(enabled = vm.screen == Screen.GAME || vm.screen == Screen.VICTORY) {
         if (vm.screen == Screen.GAME) { if (vm.showPause) vm.resume() else vm.pause() } else vm.toSetup()
     }
-    when (vm.screen) {
-        Screen.SPLASH -> SplashScreen(vm.reducedMotion, onDone = vm::finishSplash)
-        Screen.SETUP -> SetupScreen(vm)
-        Screen.GAME -> GameScreen(vm)
-        Screen.VICTORY -> ResultScreen(vm)
+    // Screen-to-screen motion: the new screen fades and settles in (scale 96 -> 100 %), the old one fades out.
+    AnimatedContent(
+        targetState = vm.screen,
+        transitionSpec = {
+            if (vm.reducedMotion) EnterTransition.None togetherWith ExitTransition.None
+            else (fadeIn(tween(340, delayMillis = 70)) + scaleIn(tween(340, delayMillis = 70), initialScale = 0.96f)) togetherWith fadeOut(tween(160))
+        },
+        label = "screens",
+    ) { screen ->
+        when (screen) {
+            Screen.SPLASH -> SplashScreen(vm.reducedMotion, onDone = vm::finishSplash)
+            Screen.SETUP -> SetupScreen(vm)
+            Screen.GAME -> GameScreen(vm)
+            Screen.VICTORY -> ResultScreen(vm)
+        }
     }
 }
 
@@ -78,6 +119,8 @@ fun SplashScreen(reduceMotion: Boolean, onDone: () -> Unit) {
         if (reduceMotion) progress.snapTo(1f) else progress.animateTo(1f, tween(1800, easing = LinearEasing))
         onDone()
     }
+    val p = progress.value
+    fun win(a: Float, b: Float) = ((p - a) / (b - a)).coerceIn(0f, 1f)
     Column(
         Modifier.fillMaxSize()
             .radialBg(0.5f, 0.35f, 0f to Color(0xFF6E7FE8), 0.42f to Color(0xFF343B83), 1f to Color(0xFF171D48), overlay = true)
@@ -85,15 +128,22 @@ fun SplashScreen(reduceMotion: Boolean, onDone: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        // title drops in
+        Column(
+            Modifier.graphicsLayer { alpha = win(0f, 0.25f); translationY = (1f - win(0f, 0.25f)) * -28f },
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
             Text("A STRATEGY GAME", color = Color(0xFFD8E1FF), fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 5.sp)
             Spacer(Modifier.height(14.dp))
             Text("CIRCLES", color = Color.White, fontSize = 38.sp, fontWeight = FontWeight.Black, letterSpacing = (-1.5).sp, lineHeight = 40.sp)
             Text("TRIANGLE", color = Color(0xFFFFCF68), fontSize = 38.sp, fontWeight = FontWeight.Black, letterSpacing = (-1.5).sp, lineHeight = 40.sp)
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(26.dp)) {
-            TriangleLogo()
-            Text("THINK • CONNECT • WIN", color = Color(0xFFDCE4FF), fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+            TriangleLogo(p)   // triangle is drawn edge by edge, then the seven circles pop in
+            Text(
+                "THINK • CONNECT • WIN", color = Color(0xFFDCE4FF), fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp,
+                modifier = Modifier.graphicsLayer { alpha = win(0.55f, 0.8f); translationY = (1f - win(0.55f, 0.8f)) * 16f },
+            )
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(13.dp)) {
             Box(Modifier.width(190.dp).height(5.dp).clip(RoundedCornerShape(8.dp)).background(Color(0x33FFFFFF))) {
@@ -107,23 +157,33 @@ fun SplashScreen(reduceMotion: Boolean, onDone: () -> Unit) {
     }
 }
 
-/** Logo exactly as in Kite (244x250 viewBox): gradient triangle outline and seven circles. */
+internal fun easeOutBack(t: Float): Float { val c1 = 1.70158f; val c3 = c1 + 1f; val x = t - 1f; return 1f + c3 * x * x * x + c1 * x * x }
+
+/** Logo exactly as in Kite (244x250 viewBox). [progress] 0..1: the outline draws itself, then the circles pop in one by one. */
 @Composable
-fun TriangleLogo() {
+fun TriangleLogo(progress: Float = 1f) {
     Canvas(Modifier.size(244.dp, 250.dp)) {
         val k = size.width / 244f
         val path = Path().apply {
             moveTo(122f * k, 18f * k); lineTo(18f * k, 218f * k); lineTo(226f * k, 218f * k); close()
         }
+        val edge = (progress / 0.6f).coerceIn(0f, 1f)
+        val shown = if (edge >= 1f) path else Path().also {
+            val m = PathMeasure(); m.setPath(path, false); m.getSegment(0f, m.length * edge, it, true)
+        }
         drawPath(
-            path,
+            shown,
             Brush.linearGradient(listOf(Color(0xFFFFF2A6), Color(0xFFFFBA55), Color(0xFFFF6D8C)), Offset(0f, 0f), Offset(size.width, size.height)),
-            style = Stroke(8f * k, join = StrokeJoin.Round),
+            style = Stroke(8f * k, cap = StrokeCap.Round, join = StrokeJoin.Round),
         )
         val pts = listOf(122f to 18f, 70f to 118f, 174f to 118f, 18f to 218f, 122f to 218f, 226f to 218f, 122f to 118f)
-        for ((x, y) in pts) {
-            drawCircle(Color(0xFFF7F8FF), 13f * k, Offset(x * k, y * k))
-            drawCircle(Color(0xFFFFBD64), 13f * k - 2f * k, Offset(x * k, y * k), style = Stroke(4f * k))
+        pts.forEachIndexed { i, (x, y) ->
+            val t = ((progress - (0.2f + i * 0.085f)) / 0.22f).coerceIn(0f, 1f)
+            if (t > 0f) {
+                val r = 13f * k * easeOutBack(t)
+                drawCircle(Color(0xFFF7F8FF), r, Offset(x * k, y * k))
+                drawCircle(Color(0xFFFFBD64), (r - 2f * k).coerceAtLeast(0f), Offset(x * k, y * k), style = Stroke(4f * k))
+            }
         }
     }
 }
@@ -132,8 +192,9 @@ fun TriangleLogo() {
 @Composable
 fun SetupScreen(vm: GameViewModel) {
     var info by remember { mutableStateOf<String?>(null) }
+    var showSettings by remember { mutableStateOf(false) }
     Column(
-        Modifier.fillMaxSize().background(Tk.CanvasBrush).statusBarsPadding().navigationBarsPadding()
+        Modifier.fillMaxSize().background(Tk.CanvasBrush).statusBarsPadding().navigationBarsPadding().imePadding()
             .verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 22.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
@@ -144,9 +205,11 @@ fun SetupScreen(vm: GameViewModel) {
                 Text("New Game", color = Tk.Ink, fontSize = 29.sp, fontWeight = FontWeight.Black)
             }
             val shape = RoundedCornerShape(14.dp)
+            val src = remember { MutableInteractionSource() }
             Box(
-                Modifier.size(42.dp).shadow(5.dp, shape, ambientColor = Color(0x448B98CE), spotColor = Color(0x448B98CE)).clip(shape).background(Color.White)
-                    .clickable(role = Role.Button) { info = "Settings are not available in this version yet." },
+                Modifier.pressScale(src).size(42.dp).shadow(5.dp, shape, ambientColor = Color(0x448B98CE), spotColor = Color(0x448B98CE)).clip(shape).background(Color.White)
+                    .semantics { contentDescription = "Settings" }
+                    .tapClickable(src) { showSettings = true },
                 contentAlignment = Alignment.Center,
             ) { LIcon(Lucide.Settings, 20.dp, Tk.IconStroke) }
         }
@@ -171,12 +234,29 @@ fun SetupScreen(vm: GameViewModel) {
             }
         }
 
-        if (vm.mode == GameMode.COMPUTER) {
-            WhiteCard {
-                SectionLabel("DIFFICULTY")
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for (d in Difficulty.values())
-                        Chip(d.name.lowercase().replaceFirstChar { it.uppercase() }, vm.difficulty == d, { vm.difficulty = d }, Modifier.weight(1f), radius = 11, vPad = 11, fontSize = 13)
+        // Difficulty (vs computer) or player names (two players): the card swaps with a soft cross-fade.
+        if (vm.mode != GameMode.ONLINE) {
+            AnimatedContent(
+                targetState = vm.mode,
+                transitionSpec = { (fadeIn(tween(240, 90)) + scaleIn(tween(240, 90), initialScale = 0.97f)) togetherWith fadeOut(tween(90)) using SizeTransform(clip = false) },
+                label = "modeCard",
+            ) { m ->
+                if (m == GameMode.COMPUTER) {
+                    WhiteCard {
+                        SectionLabel("DIFFICULTY")
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            for (d in Difficulty.values())
+                                Chip(d.name.lowercase().replaceFirstChar { it.uppercase() }, vm.difficulty == d, { vm.difficulty = d }, Modifier.weight(1f), radius = 11, vPad = 11, fontSize = 13)
+                        }
+                    }
+                } else {
+                    val focus = LocalFocusManager.current
+                    WhiteCard {
+                        SectionLabel("PLAYER NAMES")
+                        NameField(vm.nameOne, { vm.nameOne = it }, "PLAYER 1", "Player 1", Tk.Player1, last = false, onDone = {})
+                        NameField(vm.nameTwo, { vm.nameTwo = it }, "PLAYER 2", "Player 2", Tk.Player2, last = true, onDone = { focus.clearFocus() })
+                        Text("Optional. Leave a name empty to use the default.", color = Tk.MutedText, fontSize = 12.sp)
+                    }
                 }
             }
         }
@@ -184,6 +264,7 @@ fun SetupScreen(vm: GameViewModel) {
             if (vm.canStart) vm.startGame() else info = "Online multiplayer is not available in this version yet. Choose Play Against Computer or Two Players."
         })
     }
+    if (showSettings) SettingsDialog(onDismiss = { showSettings = false })
     info?.let { msg ->
         AlertDialog(
             onDismissRequest = { info = null },
@@ -197,11 +278,12 @@ fun SetupScreen(vm: GameViewModel) {
 @Composable
 private fun ModeOption(icon: List<String>, label: String, selected: Boolean, onClick: () -> Unit) {
     val shape = RoundedCornerShape(13.dp)
+    val src = remember { MutableInteractionSource() }
     Row(
-        Modifier.fillMaxWidth().clip(shape)
+        Modifier.pressScale(src).fillMaxWidth().clip(shape)
             .background(if (selected) Color(0x22FFFFFF) else Color(0x12FFFFFF))
             .then(if (selected) Modifier.border(1.5.dp, Tk.Gold, shape) else Modifier)
-            .clickable(role = Role.RadioButton, onClick = onClick)
+            .tapClickable(src, role = Role.RadioButton, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -210,6 +292,23 @@ private fun ModeOption(icon: List<String>, label: String, selected: Boolean, onC
         Text(label, color = Color.White, fontSize = 15.sp, fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Bold, modifier = Modifier.weight(1f))
         if (selected) Text("SELECTED", color = Tk.GoldLight, fontSize = 11.sp)
     }
+}
+
+/** Settings: music and sound-effect switches (remembered between launches). */
+@Composable
+fun SettingsDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color.White,
+        title = { Text("Settings", color = Tk.Ink, fontWeight = FontWeight.Black) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                SwitchRow("Music", "Background music", Sound.musicOn) { Sound.setMusic(it) }
+                SwitchRow("Sound effects", "Taps, scoring and results", Sound.effectsOn) { Sound.setEffects(it) }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Done", color = Tk.Indigo, fontWeight = FontWeight.ExtraBold) } },
+    )
 }
 
 // ---------------------------------------------------------------- Results (05 / 06 / 07 / 08)
@@ -253,17 +352,70 @@ private fun styleFor(o: Outcome): ResultStyle = when (o) {
     )
 }
 
+/** Falling confetti for the win screens (purely decorative, never intercepts touches). */
+@Composable
+private fun Confetti(modifier: Modifier = Modifier) {
+    val t by rememberInfiniteTransition(label = "confetti").animateFloat(0f, 1f, infiniteRepeatable(tween(7000, easing = LinearEasing)), label = "t")
+    val palette = remember { listOf(Color(0xFFFFCF68), Color(0xFFFF9B75), Color(0xFFFFFFFF), Color(0xFF9CA7F3), Color(0xFFFFE5A9)) }
+    val bits = remember {
+        val r = kotlin.random.Random(11)
+        List(34) { floatArrayOf(r.nextFloat(), r.nextFloat(), 0.5f + r.nextFloat(), r.nextFloat() * 360f, 5f + r.nextFloat() * 6f, r.nextInt(palette.size).toFloat()) }
+    }
+    Canvas(modifier) {
+        for (b in bits) {
+            val prog = (b[1] + t * b[2]) % 1f                                   // 0 = above the screen, 1 = below it
+            val x = (b[0] + 0.035f * sin(((t * 3f * b[2]) + b[1]) * 2f * PI.toFloat())) * size.width
+            val y = prog * (size.height + 60f) - 30f
+            val w = b[4].dp.toPx()
+            rotate(b[3] + t * 720f * b[2], pivot = Offset(x, y)) {
+                drawRect(palette[b[5].toInt()].copy(alpha = 0.9f), Offset(x - w / 2f, y - w * 0.3f), androidx.compose.ui.geometry.Size(w, w * 0.6f))
+            }
+        }
+    }
+}
+
 @Composable
 fun ResultScreen(vm: GameViewModel) {
     val s = vm.state ?: return
     val computer = vm.mode == GameMode.COMPUTER
-    // Outcome comes from the real match result; "Defeat" = the human (Player 1) lost to the computer.
+    // Outcome comes from the real match result; "Defeat" = the human (You) lost to the computer.
     val outcome = when (s.result) {
         MatchResult.PLAYER_ONE_WINS -> Outcome.P1_VICTORY
         MatchResult.PLAYER_TWO_WINS -> if (computer) Outcome.DEFEAT else Outcome.P2_VICTORY
         else -> Outcome.DRAW
     }
     val st = styleFor(outcome)
+    val n1 = vm.nameOf(Player.ONE)
+    val n2 = vm.nameOf(Player.TWO)
+    // Names replace "Player 1" / "Player 2" (and "You" / "Computer" in computer mode).
+    val (title, subtitle, label) = when (outcome) {
+        Outcome.P1_VICTORY ->
+            if (computer) Triple("YOU WIN!", "A brilliant game. You take the win.", "WINNER • YOU")
+            else Triple("${n1.uppercase()} WINS", "A brilliant game. $n1 takes the win.", "WINNER • ${n1.uppercase()}")
+        Outcome.P2_VICTORY -> Triple("${n2.uppercase()} WINS!", "A brilliant game. $n2 takes the win.", "WINNER • ${n2.uppercase()}")
+        Outcome.DEFEAT -> Triple(st.title, "$n2 wins this round", st.label)
+        Outcome.DRAW -> Triple(st.title, st.subtitle, st.label)
+    }
+    val titleSize = if (title.length <= 14) st.titleSize.toFloat() else (st.titleSize * 14f / title.length).coerceAtLeast(22f)
+
+    // ---- motion: staggered entrance, emblem spring, floating emblem, score count-up
+    val enter = remember { Animatable(if (vm.reducedMotion) 1f else 0f) }
+    val emblemScale = remember { Animatable(if (vm.reducedMotion) 1f else 0.2f) }
+    var scoreTarget by remember { mutableStateOf(if (vm.reducedMotion) 1 else 0) }
+    LaunchedEffect(Unit) {
+        if (!vm.reducedMotion) {
+            launch { enter.animateTo(1f, tween(1000, easing = LinearEasing)) }
+            launch { delay(180); emblemScale.animateTo(1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow)) }
+            delay(650); scoreTarget = 1
+        }
+    }
+    fun win(a: Float, b: Float) = ((enter.value - a) / (b - a)).coerceIn(0f, 1f)
+    val shownOne by animateIntAsState(s.scoreOne * scoreTarget, tween(if (vm.reducedMotion) 0 else 900), label = "s1")
+    val shownTwo by animateIntAsState(s.scoreTwo * scoreTarget, tween(if (vm.reducedMotion) 0 else 900), label = "s2")
+    val idle = rememberInfiniteTransition(label = "idle")
+    val bob by idle.animateFloat(-5f, 5f, infiniteRepeatable(tween(2200), RepeatMode.Reverse), label = "bob")
+    val halo by idle.animateFloat(1f, 1.07f, infiniteRepeatable(tween(1800), RepeatMode.Reverse), label = "halo")
+
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val minH = maxHeight
         Column(
@@ -273,38 +425,47 @@ fun ResultScreen(vm: GameViewModel) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                Modifier.graphicsLayer { alpha = win(0f, 0.35f); translationY = (1f - win(0f, 0.35f)) * -24f },
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
                 Text("CIRCLES TRIANGLE", color = st.headColor, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 4.sp)
                 Spacer(Modifier.height(14.dp))
-                Text(st.title, color = Color.White, fontSize = st.titleSize.sp, fontWeight = FontWeight.Black, letterSpacing = st.titleSpacing.sp, textAlign = TextAlign.Center)
+                Text(title, color = Color.White, fontSize = titleSize.sp, fontWeight = FontWeight.Black, letterSpacing = st.titleSpacing.sp, textAlign = TextAlign.Center, maxLines = 1)
                 Spacer(Modifier.height(8.dp))
-                Text(st.subtitle, color = st.headColor, fontSize = st.subSize.sp, textAlign = TextAlign.Center)
+                Text(subtitle, color = st.headColor, fontSize = st.subSize.sp, textAlign = TextAlign.Center)
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Box(
                     Modifier.padding(12.dp).size(st.emblemOuter.dp)
-                        .drawBehind { drawCircle(st.ringColor, radius = size.minDimension / 2f + 12.dp.toPx()) }
+                        .graphicsLayer {
+                            scaleX = emblemScale.value; scaleY = emblemScale.value
+                            translationY = if (emblemScale.value >= 0.99f) bob.dp.toPx() else 0f
+                        }
+                        .drawBehind { drawCircle(st.ringColor, radius = (size.minDimension / 2f + 12.dp.toPx()) * halo) }
                         .shadow(18.dp, CircleShape, ambientColor = st.shadowColor, spotColor = st.shadowColor)
                         .clip(CircleShape).background(st.emblemBrush),
                     contentAlignment = Alignment.Center,
                 ) { Emblem(outcome, st.emblemInner.dp) }
-                Text(st.label, color = st.labelColor, fontSize = st.labelSize.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
+                Text(label, color = st.labelColor, fontSize = st.labelSize.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp,
+                    modifier = Modifier.graphicsLayer { alpha = win(0.35f, 0.65f) }, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             val panel = RoundedCornerShape(22.dp)
             Column(
-                Modifier.fillMaxWidth().clip(panel).background(Color(0x18FFFFFF)).border(1.dp, Color(0x35FFFFFF), panel).padding(20.dp),
+                Modifier.fillMaxWidth().graphicsLayer { alpha = win(0.4f, 0.75f); translationY = (1f - win(0.4f, 0.75f)) * 40f }
+                    .clip(panel).background(Color(0x18FFFFFF)).border(1.dp, Color(0x35FFFFFF), panel).padding(20.dp),
             ) {
                 val winnerTwo = s.scoreTwo > s.scoreOne
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column {
-                        Text("PLAYER 1", color = st.muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        Text(s.scoreOne.toString().padStart(2, '0'), color = Color.White, fontSize = st.scoreSize.sp, fontWeight = FontWeight.Black)
+                    Column(Modifier.weight(1f)) {
+                        Text(n1.uppercase(), color = st.muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(shownOne.toString().padStart(2, '0'), color = Color.White, fontSize = st.scoreSize.sp, fontWeight = FontWeight.Black)
                     }
-                    if (st.centerLabel) Text("FINAL SCORE", color = st.muted, fontSize = 12.sp)
+                    if (st.centerLabel) Text("FINAL SCORE", color = st.muted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 8.dp))
                     else Box(Modifier.height(50.dp).width(1.dp).background(Color(0x44FFFFFF)))
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("PLAYER 2" + (if (winnerTwo) st.p2Tag else ""), color = st.muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        Text(s.scoreTwo.toString().padStart(2, '0'), color = st.p2Color, fontSize = st.scoreSize.sp, fontWeight = FontWeight.Black)
+                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                        Text(n2.uppercase() + (if (winnerTwo) st.p2Tag else ""), color = st.muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(shownTwo.toString().padStart(2, '0'), color = st.p2Color, fontSize = st.scoreSize.sp, fontWeight = FontWeight.Black)
                     }
                 }
                 if (st.showBoardSize) {
@@ -317,7 +478,10 @@ fun ResultScreen(vm: GameViewModel) {
                     }
                 }
             }
-            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                Modifier.fillMaxWidth().graphicsLayer { alpha = win(0.6f, 1f); translationY = (1f - win(0.6f, 1f)) * 40f },
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
                 CtaButton("PLAY AGAIN", onClick = vm::startGame, textSize = 16, vPad = 17, radius = 15, brush = Tk.ResultCtaBrush, letterSpacing = 0f)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     GlassButton("New Setup", vm::toSetup, Modifier.weight(1f), st.glassFill)
@@ -325,5 +489,8 @@ fun ResultScreen(vm: GameViewModel) {
                 }
             }
         }
+        // a victory is celebrated with confetti; a draw or defeat is not
+        val celebrate = outcome == Outcome.P1_VICTORY || outcome == Outcome.P2_VICTORY
+        if (celebrate && !vm.reducedMotion) Confetti(Modifier.fillMaxSize().alpha(win(0.2f, 0.5f)))
     }
 }

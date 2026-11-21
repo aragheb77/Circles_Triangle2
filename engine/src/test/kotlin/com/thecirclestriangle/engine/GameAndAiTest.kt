@@ -22,6 +22,28 @@ class GameAndAiTest {
         assertEquals(0, g.state.moveCount)
     }
 
+    @Test fun playerTwoCanOpenTheGame() {
+        val s = GameState.initial(Board.of(5), Player.TWO)
+        assertEquals(Player.TWO, s.current)
+        val o = s.play(0) as MoveOutcome.Accepted
+        assertEquals(Player.TWO, o.player)
+        assertEquals(Player.ONE, o.state.current)
+        assertEquals(1, o.state.moveCount)
+    }
+
+    @Test fun undoWhenComputerOpenedOnlyIsRefusedAndLeavesStateIntact() {
+        val g = Game(GameState.initial(Board.of(5), Player.TWO))
+        g.play(0) // computer opens
+        assertFalse(g.canUndoUntilTurnOf(Player.ONE))
+        assertFalse(g.undoUntilTurnOf(Player.ONE))
+        assertEquals(1, g.state.moveCount)
+        g.play(1); g.play(2) // human, computer
+        assertTrue(g.canUndoUntilTurnOf(Player.ONE))
+        assertTrue(g.undoUntilTurnOf(Player.ONE))
+        assertEquals(1, g.state.moveCount)
+        assertEquals(Player.ONE, g.state.current)
+    }
+
     @Test fun undoOnFreshGameDoesNothing() {
         assertFalse(Game(GameState.initial(Board.of(5))).undo())
     }

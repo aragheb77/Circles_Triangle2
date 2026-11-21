@@ -105,12 +105,13 @@ class GameState private constructor(
     }
 
     companion object {
-        fun initial(board: Board): GameState =
-            GameState(board, ByteArray(board.cellCount), IntArray(board.lines.size), IntArray(2), Player.ONE, null, 0)
+        /** [first] is the player who makes the opening move (default: Player ONE). */
+        fun initial(board: Board, first: Player = Player.ONE): GameState =
+            GameState(board, ByteArray(board.cellCount), IntArray(board.lines.size), IntArray(2), first, null, 0)
 
         /** Rebuilds a state from a move list (persistence / multiplayer recovery). Null if any move is invalid. */
-        fun fromMoves(board: Board, moves: List<Int>): GameState? {
-            var s = initial(board)
+        fun fromMoves(board: Board, moves: List<Int>, first: Player = Player.ONE): GameState? {
+            var s = initial(board, first)
             for (m in moves) {
                 val o = s.play(m)
                 if (o !is MoveOutcome.Accepted) return null
