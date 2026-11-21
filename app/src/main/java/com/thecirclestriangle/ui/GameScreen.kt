@@ -154,7 +154,7 @@ fun GameScreen(vm: GameViewModel) {
                 BoardView(s, fb, { progress.value }, { entrance.value }, { pulse?.value ?: 0f }, vm::onCellTap, Modifier.fillMaxSize())
                 if (vm.stage == Stage.THINKING && computer) ThinkingPill(vm.nameOf(Player.TWO), vm.reducedMotion, Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
                 if (vm.stage == Stage.SCORE && fb != null && fb.points > 0) ScoreToast(fb, Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp))
-                AnimatedVisibility(vm.starterActive, enter = fadeIn(tween(250)), exit = fadeOut(tween(400))) {
+                androidx.compose.animation.AnimatedVisibility(visible = vm.starterActive, enter = fadeIn(tween(250)), exit = fadeOut(tween(400))) {
                     StarterDraw(vm, Modifier.fillMaxSize())
                 }
             }
