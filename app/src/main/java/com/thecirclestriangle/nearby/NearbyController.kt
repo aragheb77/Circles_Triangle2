@@ -47,6 +47,7 @@ class NearbyController(private val app: Application) {
         return if (a.isEnabled) BluetoothStatus.ON else BluetoothStatus.OFF
     }
 
+    /** Becomes the host: waits for one player to join. [name] is what the other phone shows in its list. */
     fun startHosting(name: String, rows: Int) {
         stop(); error = null
         val shown = NetProtocol.cleanName(name).ifEmpty { "Player" }
@@ -67,6 +68,7 @@ class NearbyController(private val app: Application) {
         }
     }
 
+    /** Starts searching for hosts. */
     fun startSearching() {
         stop(); error = null
         phase = NearbyPhase.SCANNING
@@ -86,6 +88,7 @@ class NearbyController(private val app: Application) {
         }
     }
 
+    /** Joins a host from the list. */
     fun join(peer: Peer) {
         when (peer.transport) {
             Transport.WIFI -> {
@@ -101,6 +104,7 @@ class NearbyController(private val app: Application) {
         }
     }
 
+    /** Wi-Fi fallback: join by typing the host's address, "192.168.1.23" or "192.168.1.23:48615". */
     fun joinAddress(text: String) {
         val t = text.trim()
         if (t.isEmpty()) return
@@ -125,6 +129,8 @@ class NearbyController(private val app: Application) {
     }
 
     private fun linked(c: Connection, host: Boolean) {
+        // The connectors own the socket that just became [c]; forget them BEFORE stop(), otherwise stop() would
+        // cancel them and close the freshly opened connection.
         wifiConnector = null
         btConnector = null
         stop()
@@ -136,6 +142,7 @@ class NearbyController(private val app: Application) {
         error = msg
     }
 
+    /** Stops hosting / searching / connecting. An already established [Connection] is NOT closed. */
     fun stop() {
         wifiHost?.stop(); wifiHost = null
         wifiScanner?.stop(); wifiScanner = null
@@ -148,5 +155,6 @@ class NearbyController(private val app: Application) {
         phase = NearbyPhase.IDLE
     }
 
+    /** True if Bluetooth permission/hardware makes the Bluetooth tab usable at all. */
     fun bluetoothAdapterOrNull(): BluetoothAdapter? = bluetoothAdapter(app)
 }
