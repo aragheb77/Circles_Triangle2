@@ -48,6 +48,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.thecirclestriangle.audio.Sfx
@@ -182,6 +183,7 @@ fun Chip(
 fun NameField(
     value: String, onChange: (String) -> Unit, label: String, placeholder: String, dot: Color,
     last: Boolean, onDone: () -> Unit, modifier: Modifier = Modifier, maxLength: Int = 12,
+    keyboardType: KeyboardType = KeyboardType.Text,
 ) {
     val focus = LocalFocusManager.current
     val shape = RoundedCornerShape(13.dp)
@@ -200,7 +202,7 @@ fun NameField(
             textStyle = TextStyle(color = Tk.Ink, fontSize = 16.sp, fontWeight = FontWeight.Bold),
             cursorBrush = SolidColor(Tk.Indigo),
             interactionSource = source,
-            keyboardOptions = KeyboardOptions(imeAction = if (last) ImeAction.Done else ImeAction.Next),
+            keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = if (last) ImeAction.Done else ImeAction.Next),
             keyboardActions = KeyboardActions(
                 onNext = { focus.moveFocus(FocusDirection.Down) },
                 onDone = { focus.clearFocus(); onDone() },

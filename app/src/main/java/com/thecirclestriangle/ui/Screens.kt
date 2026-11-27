@@ -90,8 +90,12 @@ fun Root(vm: GameViewModel) {
     LaunchedEffect(Unit) {
         vm.reducedMotion = Settings.Global.getFloat(ctx.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
     }
-    BackHandler(enabled = vm.screen == Screen.GAME || vm.screen == Screen.VICTORY) {
-        if (vm.screen == Screen.GAME) { if (vm.showPause) vm.resume() else vm.pause() } else vm.toSetup()
+    BackHandler(enabled = vm.screen == Screen.GAME || vm.screen == Screen.VICTORY || vm.screen == Screen.NEARBY) {
+        when (vm.screen) {
+            Screen.GAME -> if (vm.showPause) vm.resume() else vm.pause()
+            Screen.NEARBY -> vm.leaveNearby()
+            else -> vm.toSetup()
+        }
     }
     // Screen-to-screen motion: the new screen fades and settles in (scale 96 -> 100 %), the old one fades out.
     AnimatedContent(
@@ -105,6 +109,7 @@ fun Root(vm: GameViewModel) {
         when (screen) {
             Screen.SPLASH -> SplashScreen(vm.reducedMotion, onDone = vm::finishSplash)
             Screen.SETUP -> SetupScreen(vm)
+            Screen.NEARBY -> NearbyScreen(vm)
             Screen.GAME -> GameScreen(vm)
             Screen.VICTORY -> ResultScreen(vm)
         }
@@ -223,6 +228,7 @@ fun SetupScreen(vm: GameViewModel) {
             Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
                 ModeOption(Lucide.Cpu, "Play Against Computer", vm.mode == GameMode.COMPUTER) { vm.mode = GameMode.COMPUTER }
                 ModeOption(Lucide.Users, "Two Players", vm.mode == GameMode.TWO_PLAYERS) { vm.mode = GameMode.TWO_PLAYERS }
+                ModeOption(Lucide.Wifi, "Play Nearby (Wi-Fi / Bluetooth)", vm.mode == GameMode.NEARBY) { vm.mode = GameMode.NEARBY }
                 ModeOption(Lucide.Globe, "Online Multiplayer", vm.mode == GameMode.ONLINE) { vm.mode = GameMode.ONLINE }
             }
         }
@@ -241,7 +247,15 @@ fun SetupScreen(vm: GameViewModel) {
                 transitionSpec = { (fadeIn(tween(240, 90)) + scaleIn(tween(240, 90), initialScale = 0.97f)) togetherWith fadeOut(tween(90)) using SizeTransform(clip = false) },
                 label = "modeCard",
             ) { m ->
-                if (m == GameMode.COMPUTER) {
+                if (m == GameMode.NEARBY) {
+                    WhiteCard {
+                        SectionLabel("PLAY NEARBY")
+                        Text(
+                            "Play on two phones over the same Wi-Fi or over Bluetooth. Next you choose to host or join. If you host, the board size above is used.",
+                            color = Tk.MutedText, fontSize = 13.sp,
+                        )
+                    }
+                } else if (m == GameMode.COMPUTER) {
                     WhiteCard {
                         SectionLabel("DIFFICULTY")
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -260,7 +274,7 @@ fun SetupScreen(vm: GameViewModel) {
                 }
             }
         }
-        CtaButton("START GAME →", onClick = {
+        CtaButton(if (vm.mode == GameMode.NEARBY) "FIND A FRIEND →" else "START GAME →", onClick = {
             if (vm.canStart) vm.startGame() else info = "Online multiplayer is not available in this version yet. Choose Play Against Computer or Two Players."
         })
     }
@@ -377,23 +391,24 @@ private fun Confetti(modifier: Modifier = Modifier) {
 @Composable
 fun ResultScreen(vm: GameViewModel) {
     val s = vm.state ?: return
-    val computer = vm.mode == GameMode.COMPUTER
-    // Outcome comes from the real match result; "Defeat" = the human (You) lost to the computer.
+    val me = vm.localPlayer      // the person holding this phone (null when two people share one device)
+    // Outcome comes from the real match result; "Defeat" = the person on this device lost.
     val outcome = when (s.result) {
-        MatchResult.PLAYER_ONE_WINS -> Outcome.P1_VICTORY
-        MatchResult.PLAYER_TWO_WINS -> if (computer) Outcome.DEFEAT else Outcome.P2_VICTORY
+        MatchResult.PLAYER_ONE_WINS -> if (me == null || me == Player.ONE) Outcome.P1_VICTORY else Outcome.DEFEAT
+        MatchResult.PLAYER_TWO_WINS -> if (me == null) Outcome.P2_VICTORY else if (me == Player.TWO) Outcome.P1_VICTORY else Outcome.DEFEAT
         else -> Outcome.DRAW
     }
     val st = styleFor(outcome)
     val n1 = vm.nameOf(Player.ONE)
     val n2 = vm.nameOf(Player.TWO)
-    // Names replace "Player 1" / "Player 2" (and "You" / "Computer" in computer mode).
+    val opponentName = me?.let { vm.nameOf(it.opponent) } ?: n2
+    // Names replace "Player 1" / "Player 2"; the local player is always "You".
     val (title, subtitle, label) = when (outcome) {
         Outcome.P1_VICTORY ->
-            if (computer) Triple("YOU WIN!", "A brilliant game. You take the win.", "WINNER • YOU")
+            if (me != null) Triple("YOU WIN!", "A brilliant game. You take the win.", "WINNER • YOU")
             else Triple("${n1.uppercase()} WINS", "A brilliant game. $n1 takes the win.", "WINNER • ${n1.uppercase()}")
         Outcome.P2_VICTORY -> Triple("${n2.uppercase()} WINS!", "A brilliant game. $n2 takes the win.", "WINNER • ${n2.uppercase()}")
-        Outcome.DEFEAT -> Triple(st.title, "$n2 wins this round", st.label)
+        Outcome.DEFEAT -> Triple(st.title, "$opponentName wins this round", st.label)
         Outcome.DRAW -> Triple(st.title, st.subtitle, st.label)
     }
     val titleSize = if (title.length <= 14) st.titleSize.toFloat() else (st.titleSize * 14f / title.length).coerceAtLeast(22f)
@@ -482,7 +497,20 @@ fun ResultScreen(vm: GameViewModel) {
                 Modifier.fillMaxWidth().graphicsLayer { alpha = win(0.6f, 1f); translationY = (1f - win(0.6f, 1f)) * 40f },
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                CtaButton("PLAY AGAIN", onClick = vm::startGame, textSize = 16, vPad = 17, radius = 15, brush = Tk.ResultCtaBrush, letterSpacing = 0f)
+                val nearby = vm.mode == GameMode.NEARBY
+                val ended = vm.nearbyEnded
+                if (nearby && ended != null) {
+                    // the other phone is gone: no rematch possible
+                    Text(ended, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
+                } else {
+                    if (nearby && vm.rematchTheirs && !vm.rematchMine)
+                        Text("$opponentName wants to play again", color = st.headColor, fontSize = 14.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                    CtaButton(
+                        if (nearby && vm.rematchMine) "WAITING FOR ${opponentName.uppercase()}…" else "PLAY AGAIN",
+                        onClick = if (nearby) vm::requestRematch else vm::startGame,
+                        textSize = 16, vPad = 17, radius = 15, brush = Tk.ResultCtaBrush, letterSpacing = 0f,
+                    )
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     GlassButton("New Setup", vm::toSetup, Modifier.weight(1f), st.glassFill)
                     GlassButton("Main Menu", vm::toMainMenu, Modifier.weight(1f), st.glassFill)

@@ -39,6 +39,13 @@ object Lucide {
     val Pause = listOf(rrect(14f, 3f, 5f, 18f, 1f), rrect(5f, 3f, 5f, 18f, 1f))
     val Undo2 = listOf("M9 14L4 9l5-5", "M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11")
     val CirclePause = listOf(circle(12f, 12f, 10f), "M10 15V9m4 6V9")
+    val Wifi = listOf("M12 20h.01", "M2 8.82a15 15 0 0 1 20 0", "M5 12.859a10 10 0 0 1 14 0", "M8.5 16.429a5 5 0 0 1 7 0")
+    val Bluetooth = listOf("M7 7L17 17L12 22V2L17 7L7 17")
+    val ArrowLeft = listOf("M19 12H5", "M12 19L5 12L12 5")
+    val RefreshCw = listOf(
+        "M3 12a9 9 0 0 1 9-9a9.75 9.75 0 0 1 6.74 2.74L21 8", "M21 3v5h-5",
+        "M21 12a9 9 0 0 1-9 9a9.75 9.75 0 0 1-6.74-2.74L3 16", "M8 16H3v5",
+    )
     val Music = listOf("M9 18V5l12-2v13", circle(6f, 18f, 3f), circle(18f, 16f, 3f))
     /** Music with a diagonal slash (music switched off). */
     val MusicOff = listOf("M9 18V5l12-2v13", circle(6f, 18f, 3f), circle(18f, 16f, 3f), "M3 3L21 21")

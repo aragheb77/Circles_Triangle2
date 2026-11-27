@@ -1,4 +1,4 @@
-# Design decisions (corrective actions G-01 … G-23)
+# Design decisions (corrective actions G-01 … G-27)
 
 Full table with status: `Circles_Triangle_Design_Audit.xlsx` → sheet **Gaps & Decisions**.
 
@@ -27,6 +27,10 @@ Full table with status: `Circles_Triangle_Design_Audit.xlsx` → sheet **Gaps & 
 | G-21 | v0.2 Two Players: optional name fields (12 chars max) on setup; blank = default |
 | G-22 | v0.2 Audio synthesised at runtime (no licensed assets); music + effects switches persisted |
 | G-23 | v0.2 Extra motion beyond the storyboard (splash draw-on, board entrance, confetti, button press) – deviation, needs design sign-off; all disabled under reduced motion |
+| G-24 | v0.3 Play Nearby: new setup mode + lobby screen (Host / Join, Wi-Fi / Bluetooth). **The "Multiplayer POC" Kite file could not be opened, so the lobby is designed in the existing app style - needs design review** |
+| G-25 | v0.3 Native transports (NSD + TCP, RFCOMM) instead of Google Nearby Connections: no Play Services dependency and an explicit Wi-Fi / Bluetooth choice. Trade-off: Bluetooth lists all nearby phones/tablets (headphones etc. filtered) rather than only game hosts |
+| G-26 | v0.3 Nearby host accepts the first phone that connects (no approve/decline step); only one player is accepted. Consider an "Allow <name>?" prompt |
+| G-27 | v0.3 No Undo and no Restart in Play Nearby; Pause does not pause the opponent |
 
 Turn rule used: players strictly alternate (no extra turn for scoring) – taken from "exactly one valid move per turn".
 

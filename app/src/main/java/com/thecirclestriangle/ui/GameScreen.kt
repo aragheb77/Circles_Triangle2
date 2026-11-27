@@ -64,6 +64,7 @@ import com.thecirclestriangle.Confirm
 import com.thecirclestriangle.GameMode
 import com.thecirclestriangle.GameViewModel
 import com.thecirclestriangle.MoveFeedback
+import com.thecirclestriangle.Screen
 import com.thecirclestriangle.Stage
 import com.thecirclestriangle.engine.GameState
 import com.thecirclestriangle.engine.Player
@@ -74,6 +75,8 @@ private fun playerColor(p: Player) = if (p == Player.ONE) Tk.Player1 else Tk.Pla
 fun GameScreen(vm: GameViewModel) {
     val s = vm.state ?: return
     val computer = vm.mode == GameMode.COMPUTER
+    val nearby = vm.mode == GameMode.NEARBY
+    val opponent = vm.localPlayer?.opponent ?: Player.TWO
     val dur = if (vm.reducedMotion) 0 else 200
     val fb = vm.feedback
 
@@ -152,9 +155,9 @@ fun GameScreen(vm: GameViewModel) {
                 contentAlignment = Alignment.Center,
             ) {
                 BoardView(s, fb, { progress.value }, { entrance.value }, { pulse?.value ?: 0f }, vm::onCellTap, Modifier.fillMaxSize())
-                if (vm.stage == Stage.THINKING && computer) ThinkingPill(vm.nameOf(Player.TWO), vm.reducedMotion, Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
+                if ((vm.stage == Stage.THINKING && computer) || vm.waitingForRemote) ThinkingPill(vm.nameOf(opponent), vm.reducedMotion, Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
                 if (vm.stage == Stage.SCORE && fb != null && fb.points > 0) ScoreToast(fb, Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp))
-                androidx.compose.animation.AnimatedVisibility(visible = vm.starterActive, enter = fadeIn(tween(250)), exit = fadeOut(tween(400))) {
+                AnimatedVisibility(vm.starterActive, enter = fadeIn(tween(250)), exit = fadeOut(tween(400))) {
                     StarterDraw(vm, Modifier.fillMaxSize())
                 }
             }
@@ -163,12 +166,21 @@ fun GameScreen(vm: GameViewModel) {
                 Modifier.fillMaxWidth().shadow(6.dp, tb, ambientColor = Color(0x226876B3), spotColor = Color(0x226876B3)).clip(tb).background(Color.White).padding(15.dp),
                 horizontalArrangement = Arrangement.SpaceAround,
             ) {
-                ToolButton(Lucide.Undo2, "Undo", vm.canUndo && vm.stage == Stage.IDLE && !vm.starterActive, vm::undo)
+                if (!nearby) ToolButton(Lucide.Undo2, "Undo", vm.canUndo && vm.stage == Stage.IDLE && !vm.starterActive, vm::undo)
                 ToolButton(Lucide.CirclePause, "Pause", true, vm::pause)
             }
         }
 
         AnimatedVisibility(vm.showPause, enter = fadeIn(tween(200)), exit = fadeOut(tween(150))) { PauseOverlay(vm) }
+        // Play Nearby: the other phone left, or the connection dropped
+        if (screenIsGame(vm)) vm.nearbyEnded?.let { msg ->
+            AlertDialog(
+                onDismissRequest = {},
+                title = { Text("Game ended") },
+                text = { Text(msg) },
+                confirmButton = { TextButton(onClick = vm::toSetup) { Text("OK") } },
+            )
+        }
         vm.confirm?.let { c ->
             AlertDialog(
                 onDismissRequest = { vm.confirm = null },
@@ -240,7 +252,7 @@ private fun StarterCard(name: String, color: Color, lit: Boolean, won: Boolean, 
 }
 
 @Composable
-private fun IconTile(icon: List<String>, label: String, onClick: () -> Unit) {
+internal fun IconTile(icon: List<String>, label: String, onClick: () -> Unit) {
     val shape = RoundedCornerShape(14.dp)
     val src = remember { MutableInteractionSource() }
     Box(
@@ -370,12 +382,14 @@ private fun PauseOverlay(vm: GameViewModel) {
                 contentAlignment = Alignment.Center,
             ) { LIcon(Lucide.Pause, 30.dp, Color.White) }
             Text("Game Paused", color = Tk.Ink, fontSize = 29.sp, fontWeight = FontWeight.Black)
-            Text("Take a breath. Your game is saved.", color = Tk.MutedText, fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.offset(y = (-8).dp))
+            Text(if (vm.mode == GameMode.NEARBY) "Your friend’s game keeps running while you are paused." else "Take a breath. Your game is saved.", color = Tk.MutedText, fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.offset(y = (-8).dp))
             SwitchRow("Music", "Background music", Sound.musicOn) { Sound.setMusic(it) }
             Column(Modifier.fillMaxWidth().padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 CtaButton("RESUME GAME", vm::resume, textSize = 16, vPad = 15, radius = 14, letterSpacing = 0f)
-                OutlineButton("Restart Game", { vm.requestConfirm(Confirm.RESTART) })
-                OutlineButton("Game Setup", { vm.requestConfirm(Confirm.NEW_GAME) })
+                if (vm.mode != GameMode.NEARBY) {
+                    OutlineButton("Restart Game", { vm.requestConfirm(Confirm.RESTART) })
+                    OutlineButton("Game Setup", { vm.requestConfirm(Confirm.NEW_GAME) })
+                }
                 OutlineButton("Exit to Main Menu", { vm.requestConfirm(Confirm.EXIT) }, textColor = Tk.SecondaryMuted)
             }
         }
@@ -472,3 +486,5 @@ fun BoardView(
         state.lastMove?.let { drawCircle(Tk.Gold, g.d / 2f + (2.75f + 1.5f * pulse()) * g.k, pos(it), style = Stroke(2.5f * g.k)) }
     }
 }
+
+private fun screenIsGame(vm: GameViewModel) = vm.screen == Screen.GAME

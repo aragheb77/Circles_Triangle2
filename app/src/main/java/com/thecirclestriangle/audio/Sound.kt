@@ -105,7 +105,7 @@ object Sound {
                 } else if (track.playState == AudioTrack.PLAYSTATE_PLAYING) {
                     track.pause()
                 }
-            } catch (_: IllegalStateException) { /* track released by the system: stay silent */ }
+            } catch (e: IllegalStateException) { /* track released by the system: stay silent */ }
         }
     }
 
@@ -129,7 +129,7 @@ object Sound {
             try {
                 if (!file.exists() || file.length() == 0L) writeWav(file, Synth.effect(sfx))
                 ids[sfx] = sp.load(file.absolutePath, 1)
-            } catch (_: Exception) { /* a missing effect must never crash the game */ }
+            } catch (e: Exception) { /* a missing effect must never crash the game */ }
         }
         synchronized(lock) { pool = sp; soundIds.putAll(ids) }
 
@@ -151,7 +151,7 @@ object Sound {
             track.setVolume(0.38f)
             synchronized(lock) { music = track }
             applyMusic()
-        } catch (_: Exception) { /* no music is better than a crash */ }
+        } catch (e: Exception) { /* no music is better than a crash */ }
     }
 
     private fun writeWav(file: File, pcm: ShortArray) {
