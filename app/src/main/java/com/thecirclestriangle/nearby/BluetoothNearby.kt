@@ -34,7 +34,7 @@ private fun wrap(socket: BluetoothSocket) = Connection(
  * is used so two phones that have never been paired can still connect without a pairing prompt.
  * (The screen separately asks the system to make the phone discoverable, so the other phone can find it.)
  */
-@SuppressLint("MissingPermission")
+@SuppressLint("MissingPermission")   // permissions are checked by the lobby before this is called
 class BluetoothHost(
     context: Context,
     private val onClient: (Connection) -> Unit,
@@ -124,9 +124,9 @@ class BluetoothScanner(
 
     private fun add(d: BluetoothDevice, paired: Boolean) {
         val name = try { d.name } catch (e: SecurityException) { null }
-        if (name.isNullOrBlank()) return
+        if (name.isNullOrBlank()) return                       // unnamed devices are never a friend's phone
         val major = d.bluetoothClass?.majorDeviceClass
-        if (major in IRRELEVANT_CLASSES) return
+        if (major in IRRELEVANT_CLASSES) return                // headphones, keyboards, watches ...
         devices[d.address] = d
         peers[d.address] = Peer(d.address, name, if (paired) "Paired device • Bluetooth" else "Bluetooth", Transport.BLUETOOTH)
         onPeers(peers.values.toList())
@@ -163,7 +163,7 @@ class BluetoothConnector(
     @Volatile private var connected = false
 
     fun start() {
-        try { adapter?.cancelDiscovery() } catch (e: SecurityException) { }
+        try { adapter?.cancelDiscovery() } catch (e: SecurityException) { }   // discovery slows and breaks connecting
         Thread({
             var last: Exception? = null
             for (attempt in 1..2) {
@@ -195,7 +195,7 @@ class BluetoothConnector(
     }
 
     fun cancel() {
-        if (connected) return
+        if (connected) return              // the socket now belongs to the Connection
         cancelled = true
         try { socket?.close() } catch (e: IOException) { }
     }
