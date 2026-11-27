@@ -15,6 +15,7 @@ import java.net.ServerSocket
 import java.net.Socket
 import kotlin.random.Random
 
+/** The phone's own IPv4 address on the local network (shown to the host so a friend can type it if discovery fails). */
 fun localIpv4(): String? = try {
     NetworkInterface.getNetworkInterfaces().toList()
         .filter { it.isUp && !it.isLoopback }
@@ -29,6 +30,10 @@ private fun wrap(socket: Socket, label: String) = Connection(
     { try { socket.close() } catch (e: IOException) { } }, label,
 )
 
+/**
+ * Hosts a game on the local network: opens a TCP port, advertises it with mDNS / DNS-SD (NsdManager) so the
+ * other phone sees it in its list, and accepts exactly one player. Needs no internet connection.
+ */
 class WifiHost(
     context: Context,
     private val displayName: String,
@@ -42,6 +47,7 @@ class WifiHost(
     private var registration: NsdManager.RegistrationListener? = null
     @Volatile private var stopped = false
 
+    /** Starts listening. Returns the local port, or null if it failed (then [onFail] was called). */
     fun start(): Int? {
         val srv = try {
             try { ServerSocket(WIFI_PORT) } catch (e: IOException) { ServerSocket(0) }
@@ -57,7 +63,7 @@ class WifiHost(
                 sock.tcpNoDelay = true
                 sock.keepAlive = true
                 if (stopped) { sock.close(); return@Thread }
-                stop()
+                stop()                                   // one player is enough: stop advertising and listening
                 val conn = wrap(sock, "Wi-Fi")
                 main.post { onClient(conn) }
             } catch (e: IOException) {
@@ -78,7 +84,7 @@ class WifiHost(
         }
         val l = object : NsdManager.RegistrationListener {
             override fun onServiceRegistered(i: NsdServiceInfo) {}
-            override fun onRegistrationFailed(i: NsdServiceInfo, code: Int) {}
+            override fun onRegistrationFailed(i: NsdServiceInfo, code: Int) { /* still reachable by IP address */ }
             override fun onServiceUnregistered(i: NsdServiceInfo) {}
             override fun onUnregistrationFailed(i: NsdServiceInfo, code: Int) {}
         }
@@ -95,6 +101,7 @@ class WifiHost(
     }
 }
 
+/** Looks for games advertised on the local network and keeps [onPeers] up to date as they appear / disappear. */
 class WifiScanner(
     context: Context,
     private val onPeers: (List<Peer>) -> Unit,
@@ -102,8 +109,8 @@ class WifiScanner(
 ) {
     private val main = Handler(Looper.getMainLooper())
     private val nsd = context.applicationContext.getSystemService(Context.NSD_SERVICE) as NsdManager
-    private val peers = LinkedHashMap<String, Peer>()
-    private val queue = ArrayDeque<NsdServiceInfo>()
+    private val peers = LinkedHashMap<String, Peer>()       // main thread only
+    private val queue = ArrayDeque<NsdServiceInfo>()        // main thread only
     private val attempts = HashMap<String, Int>()
     private var resolving = false
     private var listener: NsdManager.DiscoveryListener? = null
@@ -128,6 +135,7 @@ class WifiScanner(
         catch (e: Exception) { onFail("Could not search this network.") }
     }
 
+    /** NsdManager only allows one resolve at a time, so found services are resolved one after another. */
     private fun pump() {
         if (resolving || queue.isEmpty() || stopped) return
         resolving = true
@@ -158,7 +166,7 @@ class WifiScanner(
 
     private fun toPeer(r: NsdServiceInfo): Peer? {
         fun attr(k: String) = r.attributes[k]?.toString(Charsets.UTF_8)
-        if (attr("v")?.toIntOrNull() != NET_PROTOCOL_VERSION) return null
+        if (attr("v")?.toIntOrNull() != NET_PROTOCOL_VERSION) return null     // other app version: cannot play together
         val address = if (Build.VERSION.SDK_INT >= 34)
             (r.hostAddresses.firstOrNull { it is Inet4Address } ?: r.hostAddresses.firstOrNull())?.hostAddress
         else @Suppress("DEPRECATION") r.host?.hostAddress
@@ -176,6 +184,7 @@ class WifiScanner(
     }
 }
 
+/** Opens the TCP connection to a host chosen from the list, or typed in by IP address. Cancel with [cancel]. */
 class WifiConnector(
     private val host: String,
     private val port: Int,
@@ -207,7 +216,7 @@ class WifiConnector(
     }
 
     fun cancel() {
-        if (connected) return
+        if (connected) return              // the socket now belongs to the Connection
         cancelled = true
         try { socket?.close() } catch (e: IOException) { }
     }
